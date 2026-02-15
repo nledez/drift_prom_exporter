@@ -56,6 +56,43 @@ def collect_certificates_drift():
 def lookup_certificate(config, name):
     fqdn = config['tls'][name]['fqdn']
     port = config['tls'][name].get('port', 443)
+    cert = ssl.get_server_certificate((fqdn, port))
+    x509 = OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, cert)
+
+    return datetime.strptime(x509.get_notAfter().decode('ascii'), '%Y%m%d%H%M%SZ')
+
+
+def collect_public_certificates_drift():
+    config_path = os.environ.get('CONFIG', False)
+    if not config_path:
+        config_path = sys.argv[1]
+    config = load(config_path)
+    data = {}
+
+    for name, tls_data in config.get('tls_le', {}).items():
+        data[name] = {}
+        data[name]['s'] = -1
+        data[name]['d'] = -1
+        try:
+            expire = (config, name)
+            now = datetime.now()
+            drift = expire - now
+            data[name]['s'] = int(drift.total_seconds())
+            data[name]['d'] = int(drift.days)
+        except ConnectionRefusedError:
+            pass
+        except ssl.SSLCertVerificationError as e:
+            print(e)
+            pass
+        except socket.gaierror:
+            pass
+
+    return data
+
+
+def lookup_certificate_sni(config, name):
+    fqdn = config['tls'][name]['fqdn']
+    port = config['tls'][name].get('port', 443)
     context = ssl.create_default_context()
     conn = socket.create_connection((fqdn, port))
     sock = context.wrap_socket(conn, server_hostname=fqdn)
@@ -119,6 +156,12 @@ def init_metrics(metrics):
     metrics['gcd'] = Gauge('certificate_drift_days',
                            'Days remind before certificate expiration',
                            ['certificate'])
+    metrics['gps'] = Gauge('public_certificate_drift_seconds',
+                           'Seconds remind before public certificate expiration',
+                           ['public_certificate'])
+    metrics['gpd'] = Gauge('public_certificate_drift_days',
+                           'Days remind before public certificate expiration',
+                           ['public_certificate'])
 
 
 def update_metrics(metrics, tokens_data, certificates_data):
