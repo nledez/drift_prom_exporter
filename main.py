@@ -179,7 +179,8 @@ if __name__ == '__main__':
     # Start up the server to expose the metrics.
     metrics = {}
     init_metrics(metrics)
-    start_http_server(8000)
+    port = int(os.environ.get('PORT', 8000))
+    start_http_server(port)
 
     # Update metrics
     while True:

@@ -1,4 +1,0 @@
-hvac
-prometheus-client
-pyyaml
-pyopenssl
