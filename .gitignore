@@ -1,1 +1,4 @@
 drift_prom_exporter.yml
+__pycache__/
+drift.pid
+envs.sh
