@@ -105,3 +105,12 @@ You can import `grafana_drift.json` dashboard in your Grafana. Now you can have 
 ![Token drift in days](sc_tokens_in_days.png)
 
 ![Certificate drift in seconds](sc_certificates_in_seconds.png)
+
+
+Release
+=======
+
+1. Update `VERSION` (and `pyproject.toml` version field)
+2. Commit and push
+3. `git tag v<version>` then `git push origin v<version>`
+4. GitHub Actions builds and pushes the Docker image automatically

@@ -1,15 +1,52 @@
-from prometheus_client import start_http_server, Gauge
+from prometheus_client import Gauge, Info, generate_latest, CONTENT_TYPE_LATEST
+import json
 import random
 import time
+import threading
 import hvac
 import os
 import sys
 import yaml
 import OpenSSL
 import ssl, socket
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 from datetime import datetime
 from hvac.exceptions import Unauthorized
+
+version = open(os.path.join(os.path.dirname(__file__), 'VERSION')).read().strip()
+status = {
+    'last_scrape': None,
+    'collectors': {}
+}
+
+
+class MetricsHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path in ('/metrics'):
+            output = generate_latest()
+            self.send_response(200)
+            self.send_header('Content-Type', CONTENT_TYPE_LATEST)
+            self.end_headers()
+            self.wfile.write(output)
+        elif self.path == '/version':
+            payload = json.dumps({'version': version}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(payload)
+        elif self.path == '/status':
+            payload = json.dumps(status).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(payload)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        pass
 
 
 def load(config_path):
@@ -197,7 +234,7 @@ def init_metrics(metrics):
                            ['public_certificate'])
 
 
-def update_metrics(metrics, tokens_data, accessors_data, certificates_data):
+def update_metrics(metrics, tokens_data, accessors_data, certificates_data, public_certificates_data):
     for name, values in {**tokens_data, **accessors_data}.items():
         metrics['gts'].labels(name).set(values['s'])
         metrics['gtd'].labels(name).set(values['d'])
@@ -206,19 +243,46 @@ def update_metrics(metrics, tokens_data, accessors_data, certificates_data):
         metrics['gcs'].labels(name).set(values['s'])
         metrics['gcd'].labels(name).set(values['d'])
 
+    for name, values in public_certificates_data.items():
+        metrics['gps'].labels(name).set(values['s'])
+        metrics['gpd'].labels(name).set(values['d'])
+
+
+def update_status(status, tokens_data, accessors_data, certificates_data, public_certificates_data):
+    status['last_scrape'] = datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+    status['collectors'] = {
+        'tokens': {name: 'error' if v['s'] == -1 else 'ok' for name, v in tokens_data.items()},
+        'accessors': {name: 'error' if v['s'] == -1 else 'ok' for name, v in accessors_data.items()},
+        'certificates': {name: 'error' if v['s'] == -1 else 'ok' for name, v in certificates_data.items()},
+        'public_certificates': {name: 'error' if v['s'] == -1 else 'ok' for name, v in public_certificates_data.items()},
+    }
+
 
 if __name__ == '__main__':
     scrape_interval = int(os.environ.get('INTERVAL', 300))
-    # Start up the server to expose the metrics.
     metrics = {}
     init_metrics(metrics)
     port = int(os.environ.get('PORT', 8000))
-    start_http_server(port)
 
-    # Update metrics
+    info = Info('drift_prom_exporter', 'Drift Prometheus Exporter build info')
+    info.info({'version': version})
+
+    print(f'drift_prom_exporter v{version}')
+
+    pid_filename = os.environ.get('PID_FILENAME')
+    if pid_filename:
+        with open(pid_filename, 'w') as f:
+            f.write(str(os.getpid()))
+
+    server = HTTPServer(('', port), MetricsHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
     while True:
         tokens_data = collect_token_drift()
         accessors_data = collect_accessor_drift()
         certificates_data = collect_certificates_drift()
-        update_metrics(metrics, tokens_data, accessors_data, certificates_data)
+        public_certificates_data = collect_public_certificates_drift()
+        update_metrics(metrics, tokens_data, accessors_data, certificates_data, public_certificates_data)
+        update_status(status, tokens_data, accessors_data, certificates_data, public_certificates_data)
         time.sleep(scrape_interval)

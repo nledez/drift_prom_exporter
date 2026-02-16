@@ -1,7 +1,7 @@
 #vars
 REPO=nledez
 IMAGENAME=drift_prom_exporter
-TAG=latest
+TAG=$(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),latest)
 IMAGEFULLNAME=${REPO}/${IMAGENAME}:${TAG}
 VENV=./venv
 
