@@ -262,6 +262,15 @@ class TestCollectTokenDrift:
         assert data['app1']['s'] == -1
         assert data['app1']['d'] == -1
 
+    def test_internal_server_error(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_token', side_effect=main.hvac.exceptions.InternalServerError):
+            data = main.collect_token_drift()
+
+        assert data['app1']['s'] == -1
+        assert data['app1']['d'] == -1
+
     def test_no_tokens_section(self, tmp_path, monkeypatch):
         cfg = tmp_path / 'no_tokens.yml'
         cfg.write_text(yaml.dump({'vault': {'server': 'https://v:8200', 'verify': False}}))
@@ -318,6 +327,15 @@ class TestCollectAccessorDrift:
         monkeypatch.setenv('CONFIG', config_file)
 
         with patch('main.lookup_accessor', side_effect=main.hvac.exceptions.InvalidPath):
+            data = main.collect_accessor_drift()
+
+        assert data['bot1']['s'] == -1
+        assert data['bot1']['d'] == -1
+
+    def test_internal_server_error(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_accessor', side_effect=main.hvac.exceptions.InternalServerError):
             data = main.collect_accessor_drift()
 
         assert data['bot1']['s'] == -1
