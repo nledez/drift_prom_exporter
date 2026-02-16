@@ -6,7 +6,7 @@ IMAGEFULLNAME := REPO + "/" + IMAGENAME + ":" + TAG
 VENV := "./venv"
 
 # default recipe
-default: build
+default: docker_build
 
 help:
     @echo "justfile commands:"
@@ -32,3 +32,28 @@ docker_run:
 
 docker_push:
     @docker push {{ IMAGEFULLNAME }}
+
+test:
+    uv run --group dev pytest -v
+
+# Increment version (patch/minor/major), commit, tag and propose git push
+release part="patch":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    IFS='.' read -r major minor patch < VERSION
+    case "{{ part }}" in
+        patch) patch=$((patch + 1)) ;;
+        minor) minor=$((minor + 1)); patch=0 ;;
+        major) major=$((major + 1)); minor=0; patch=0 ;;
+        *) echo "Unknown part: {{ part }} (use patch, minor or major)"; exit 1 ;;
+    esac
+    new_version="${major}.${minor}.${patch}"
+    echo "$new_version" > VERSION
+    git add VERSION
+    git commit -m "Bump version to v${new_version}"
+    git tag "v${new_version}"
+    echo "Version bumped to v${new_version}"
+    read -p "Push commit and tag to origin? [y/N] " answer
+    if [[ "$answer" =~ ^[yY]$ ]]; then
+        git push && git push --tags
+    fi
