@@ -162,8 +162,8 @@ def collect_token_drift():
             drift = expire - now
             data[name]['s'] = int(drift.total_seconds())
             data[name]['d'] = int(drift.days)
-        except hvac.exceptions.Unauthorized:
-            pass
+        except (hvac.exceptions.Unauthorized, hvac.exceptions.VaultDown) as e:
+            print(f'token {name}: {e}', file=sys.stderr)
 
     return data
 
@@ -198,7 +198,7 @@ def collect_accessor_drift():
             drift = expire - now
             data[name]['s'] = int(drift.total_seconds())
             data[name]['d'] = int(drift.days)
-        except (hvac.exceptions.Unauthorized, hvac.exceptions.Forbidden, hvac.exceptions.InvalidPath) as e:
+        except (hvac.exceptions.Unauthorized, hvac.exceptions.Forbidden, hvac.exceptions.InvalidPath, hvac.exceptions.VaultDown) as e:
             print(f'accessor {name}: {e}', file=sys.stderr)
 
     return data
