@@ -198,8 +198,8 @@ def collect_accessor_drift():
             drift = expire - now
             data[name]['s'] = int(drift.total_seconds())
             data[name]['d'] = int(drift.days)
-        except (hvac.exceptions.Unauthorized, hvac.exceptions.Forbidden):
-            pass
+        except (hvac.exceptions.Unauthorized, hvac.exceptions.Forbidden, hvac.exceptions.InvalidPath) as e:
+            print(f'accessor {name}: {e}', file=sys.stderr)
 
     return data
 
@@ -258,6 +258,16 @@ def update_status(status, tokens_data, accessors_data, certificates_data, public
     }
 
 
+def log_errors(status):
+    errors = []
+    for collector, items in status.get('collectors', {}).items():
+        for name, state in items.items():
+            if state == 'error':
+                errors.append(f'{collector}/{name}')
+    if errors:
+        print(f'[{datetime.now().strftime("%Y-%m-%dT%H:%M:%S")}] collectors in error: {", ".join(errors)}', file=sys.stderr)
+
+
 if __name__ == '__main__':
     scrape_interval = int(os.environ.get('INTERVAL', 300))
     metrics = {}
@@ -285,4 +295,10 @@ if __name__ == '__main__':
         public_certificates_data = collect_public_certificates_drift()
         update_metrics(metrics, tokens_data, accessors_data, certificates_data, public_certificates_data)
         update_status(status, tokens_data, accessors_data, certificates_data, public_certificates_data)
-        time.sleep(scrape_interval)
+        log_errors(status)
+        elapsed = 0
+        while elapsed < scrape_interval:
+            time.sleep(60)
+            elapsed += 60
+            if elapsed < scrape_interval:
+                log_errors(status)

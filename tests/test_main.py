@@ -104,6 +104,46 @@ class TestUpdateStatus:
 # update_metrics()
 # ---------------------------------------------------------------------------
 
+class TestLogErrors:
+    def test_prints_errors_to_stderr(self, capsys):
+        status = {
+            'collectors': {
+                'tokens': {'app1': 'ok', 'app2': 'error'},
+                'accessors': {'bot1': 'error'},
+                'certificates': {},
+                'public_certificates': {},
+            }
+        }
+        main.log_errors(status)
+        captured = capsys.readouterr()
+        assert 'tokens/app2' in captured.err
+        assert 'accessors/bot1' in captured.err
+        assert 'tokens/app1' not in captured.err
+
+    def test_no_output_when_all_ok(self, capsys):
+        status = {
+            'collectors': {
+                'tokens': {'app1': 'ok'},
+                'accessors': {},
+                'certificates': {},
+                'public_certificates': {},
+            }
+        }
+        main.log_errors(status)
+        captured = capsys.readouterr()
+        assert captured.err == ''
+
+    def test_no_output_when_empty(self, capsys):
+        status = {'collectors': {}}
+        main.log_errors(status)
+        captured = capsys.readouterr()
+        assert captured.err == ''
+
+
+# ---------------------------------------------------------------------------
+# update_metrics()
+# ---------------------------------------------------------------------------
+
 class TestUpdateMetrics:
     def test_calls_set_on_gauges(self):
         metrics = {}
@@ -255,6 +295,15 @@ class TestCollectAccessorDrift:
             data = main.collect_accessor_drift()
 
         assert data['bot1']['s'] == -1
+
+    def test_invalid_path(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_accessor', side_effect=main.hvac.exceptions.InvalidPath):
+            data = main.collect_accessor_drift()
+
+        assert data['bot1']['s'] == -1
+        assert data['bot1']['d'] == -1
 
 
 # ---------------------------------------------------------------------------
