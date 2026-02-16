@@ -143,6 +143,39 @@ def lookup_token(config, token):
         raise Unauthorized("May be expired token")
 
 
+def collect_accessor_drift():
+    config_path = os.environ.get('CONFIG', False)
+    if not config_path:
+        config_path = sys.argv[1]
+    config = load(config_path)
+    data = {}
+
+    for name, accessor in config.get('accessors', {}).items():
+        data[name] = {}
+        data[name]['s'] = -1
+        data[name]['d'] = -1
+        try:
+            expire_datetime = lookup_accessor(config, accessor)['data']['expire_time']
+            expire = datetime.strptime(expire_datetime[0:19], '%Y-%m-%dT%H:%M:%S')
+            now = datetime.now()
+            drift = expire - now
+            data[name]['s'] = int(drift.total_seconds())
+            data[name]['d'] = int(drift.days)
+        except (hvac.exceptions.Unauthorized, hvac.exceptions.Forbidden):
+            pass
+
+    return data
+
+
+def lookup_accessor(config, accessor):
+    client = hvac.Client(
+        url=config['vault']['server'],
+        token=os.environ.get('VAULT_TOKEN'),
+        verify=config['vault']['verify'],
+    )
+    return client.auth.token.lookup_accessor(accessor)
+
+
 def init_metrics(metrics):
     metrics['gts'] = Gauge('token_drift_seconds',
                           'Seconds remind before token expiration',
@@ -164,8 +197,8 @@ def init_metrics(metrics):
                            ['public_certificate'])
 
 
-def update_metrics(metrics, tokens_data, certificates_data):
-    for name, values in tokens_data.items():
+def update_metrics(metrics, tokens_data, accessors_data, certificates_data):
+    for name, values in {**tokens_data, **accessors_data}.items():
         metrics['gts'].labels(name).set(values['s'])
         metrics['gtd'].labels(name).set(values['d'])
 
@@ -185,6 +218,7 @@ if __name__ == '__main__':
     # Update metrics
     while True:
         tokens_data = collect_token_drift()
+        accessors_data = collect_accessor_drift()
         certificates_data = collect_certificates_drift()
-        update_metrics(metrics, tokens_data, certificates_data)
+        update_metrics(metrics, tokens_data, accessors_data, certificates_data)
         time.sleep(scrape_interval)

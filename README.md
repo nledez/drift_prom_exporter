@@ -46,6 +46,40 @@ certificate_drift_days{certificate="duckduckgo"} 273.0
 ```
 
 
+Accessors
+=========
+
+Instead of storing `client_token` in plain text in the configuration, you can use Vault accessors to monitor token expiration. This requires a `VAULT_TOKEN` environment variable set with a token that has the `accessor-lookup` policy.
+
+Create the following Vault policy:
+
+```hcl
+path "auth/token/lookup-accessor" {
+  capabilities = ["update"]
+}
+```
+
+Apply it:
+
+```
+vault policy write accessor-lookup accessor-lookup.hcl
+```
+
+Then add an `accessors` section to your configuration file:
+
+```yaml
+accessors:
+  my-app: "accessor_abc123..."
+  my-service: "accessor_def456..."
+```
+
+And export the `VAULT_TOKEN`:
+
+```
+export VAULT_TOKEN=s.mytoken
+```
+
+
 Prometheus configuration
 ========================
 
