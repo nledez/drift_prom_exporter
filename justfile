@@ -9,20 +9,16 @@ VENV := "./venv"
 default: docker_build
 
 help:
-    @echo "justfile commands:"
-    @echo ""
-    @echo "build"
-    @echo "push"
+    just --list
 
 install:
-    [ -d {{ VENV }} ] || virtualenv -p `command -v python3` {{ VENV }} && {{ VENV }}/bin/python -m pip install --upgrade pip
-    {{ VENV }}/bin/pip install -r requirements.txt
+    uv sync
 
 run: install
-    {{ VENV }}/bin/python main.py drift_prom_exporter.yml
+    uv run main.py drift_prom_exporter.yml
 
 curl:
-    curl localhost:8000
+    curl http://127.0.0.1:${PORT}
 
 docker_build:
     @docker build --pull -t {{ IMAGEFULLNAME }} .

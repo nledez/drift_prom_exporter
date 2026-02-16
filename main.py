@@ -269,22 +269,25 @@ def log_errors(status):
 
 
 if __name__ == '__main__':
+    bind_address = os.environ.get('BIND_ADDRESS', '0.0.0.0')
+    port = int(os.environ.get('PORT', 8000))
+    pid_filename = os.environ.get('PID_FILENAME')
     scrape_interval = int(os.environ.get('INTERVAL', 300))
+
     metrics = {}
     init_metrics(metrics)
-    port = int(os.environ.get('PORT', 8000))
 
     info = Info('drift_prom_exporter', 'Drift Prometheus Exporter build info')
     info.info({'version': version})
 
     print(f'drift_prom_exporter v{version}')
 
-    pid_filename = os.environ.get('PID_FILENAME')
     if pid_filename:
         with open(pid_filename, 'w') as f:
             f.write(str(os.getpid()))
 
-    server = HTTPServer(('', port), MetricsHandler)
+    server = HTTPServer((bind_address, port), MetricsHandler)
+    print(f'Listening on {bind_address}:{port}')
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
