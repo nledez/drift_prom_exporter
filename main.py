@@ -111,7 +111,7 @@ def collect_public_certificates_drift():
         data[name]['s'] = -1
         data[name]['d'] = -1
         try:
-            expire = (config, name)
+            expire = lookup_certificate_sni(config, name)
             now = datetime.now()
             drift = expire - now
             data[name]['s'] = int(drift.total_seconds())
@@ -128,8 +128,8 @@ def collect_public_certificates_drift():
 
 
 def lookup_certificate_sni(config, name):
-    fqdn = config['tls'][name]['fqdn']
-    port = config['tls'][name].get('port', 443)
+    fqdn = config['tls_le'][name]['fqdn']
+    port = config['tls_le'][name].get('port', 443)
     context = ssl.create_default_context()
     conn = socket.create_connection((fqdn, port))
     sock = context.wrap_socket(conn, server_hostname=fqdn)
