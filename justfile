@@ -33,7 +33,7 @@ test:
     uv run --group dev pytest -v
 
 # Increment version (patch/minor/major), commit, tag and propose git push
-release part="patch":
+bump part="patch":
     #!/usr/bin/env bash
     set -euo pipefail
     IFS='.' read -r major minor patch < VERSION
