@@ -32,7 +32,7 @@ docker_push:
 test:
     uv run --group dev pytest -v
 
-# Increment version (patch/minor/major), commit, tag and propose git push
+# Increment version (patch/minor/major) and commit VERSION
 bump part="patch":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -47,9 +47,30 @@ bump part="patch":
     echo "$new_version" > VERSION
     git add VERSION
     git commit -m "Bump version to v${new_version}"
-    git tag "v${new_version}"
-    echo "Version bumped to v${new_version}"
-    read -p "Push commit and tag to origin? [y/N] " answer
+    echo "Version bumped to v${new_version}, run 'just release' to tag and push"
+
+# Tag the current VERSION and propose to push commits and tag
+release:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version="$(tr -d '[:space:]' < VERSION)"
+    if [[ -z "$version" ]]; then
+        echo "VERSION is empty"; exit 1
+    fi
+    tag="v${version}"
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        echo "Uncommitted changes, commit or stash before releasing"; exit 1
+    fi
+    if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+        echo "Tag ${tag} already exists"; exit 1
+    fi
+    git tag -a "${tag}" -m "Release ${tag}"
+    echo "Tagged ${tag}"
+    read -p "Push commits and ${tag} to origin? [y/N] " answer
     if [[ "$answer" =~ ^[yY]$ ]]; then
-        git push && git push --tags
+        git push
+        git push origin "${tag}"
+    else
+        echo "Not pushed. Run 'git push && git push origin ${tag}' when ready,"
+        echo "or 'git tag -d ${tag}' to drop the tag."
     fi
