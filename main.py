@@ -22,6 +22,8 @@ status = {
 
 
 class MetricsHandler(BaseHTTPRequestHandler):
+    server_version = 'drift_prom_exporter/{}'.format(version)
+
     def do_GET(self):
         if self.path in ('/metrics'):
             output = generate_latest()
