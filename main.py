@@ -5,6 +5,7 @@ import time
 import threading
 import hvac
 import os
+import requests
 import sys
 import yaml
 import OpenSSL
@@ -81,13 +82,8 @@ def collect_certificates_drift():
             drift = expire - now
             data[name]['s'] = int(drift.total_seconds())
             data[name]['d'] = int(drift.days)
-        except ConnectionRefusedError:
-            pass
-        except ssl.SSLCertVerificationError as e:
-            print(e)
-            pass
-        except socket.gaierror:
-            pass
+        except OSError as e:
+            print(f'certificate {name}: {e}', file=sys.stderr)
 
     return data
 
@@ -118,13 +114,8 @@ def collect_public_certificates_drift():
             drift = expire - now
             data[name]['s'] = int(drift.total_seconds())
             data[name]['d'] = int(drift.days)
-        except ConnectionRefusedError:
-            pass
-        except ssl.SSLCertVerificationError as e:
-            print(e)
-            pass
-        except socket.gaierror:
-            pass
+        except OSError as e:
+            print(f'public certificate {name}: {e}', file=sys.stderr)
 
     return data
 
@@ -164,7 +155,7 @@ def collect_token_drift():
             drift = expire - now
             data[name]['s'] = int(drift.total_seconds())
             data[name]['d'] = int(drift.days)
-        except hvac.exceptions.VaultError as e:
+        except (hvac.exceptions.VaultError, requests.exceptions.RequestException) as e:
             print(f'token {name}: {e}', file=sys.stderr)
 
     return data
@@ -200,7 +191,7 @@ def collect_accessor_drift():
             drift = expire - now
             data[name]['s'] = int(drift.total_seconds())
             data[name]['d'] = int(drift.days)
-        except hvac.exceptions.VaultError as e:
+        except (hvac.exceptions.VaultError, requests.exceptions.RequestException) as e:
             print(f'accessor {name}: {e}', file=sys.stderr)
 
     return data

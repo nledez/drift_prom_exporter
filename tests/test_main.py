@@ -271,6 +271,26 @@ class TestCollectTokenDrift:
         assert data['app1']['s'] == -1
         assert data['app1']['d'] == -1
 
+    def test_vault_unreachable(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_token',
+                   side_effect=main.requests.exceptions.ConnectionError('refused')):
+            data = main.collect_token_drift()
+
+        assert data['app1']['s'] == -1
+        assert data['app1']['d'] == -1
+        assert data['app2']['s'] == -1
+
+    def test_vault_timeout(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_token',
+                   side_effect=main.requests.exceptions.ReadTimeout('too slow')):
+            data = main.collect_token_drift()
+
+        assert data['app1']['s'] == -1
+
     def test_no_tokens_section(self, tmp_path, monkeypatch):
         cfg = tmp_path / 'no_tokens.yml'
         cfg.write_text(yaml.dump({'vault': {'server': 'https://v:8200', 'verify': False}}))
@@ -341,6 +361,25 @@ class TestCollectAccessorDrift:
         assert data['bot1']['s'] == -1
         assert data['bot1']['d'] == -1
 
+    def test_vault_unreachable(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_accessor',
+                   side_effect=main.requests.exceptions.ConnectionError('refused')):
+            data = main.collect_accessor_drift()
+
+        assert data['bot1']['s'] == -1
+        assert data['bot1']['d'] == -1
+
+    def test_vault_timeout(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_accessor',
+                   side_effect=main.requests.exceptions.ReadTimeout('too slow')):
+            data = main.collect_accessor_drift()
+
+        assert data['bot1']['s'] == -1
+
 
 # ---------------------------------------------------------------------------
 # collect_certificates_drift()
@@ -373,6 +412,71 @@ class TestCollectCertificatesDrift:
             data = main.collect_certificates_drift()
 
         assert data['google']['s'] == -1
+
+    def test_timeout(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_certificate', side_effect=TimeoutError):
+            data = main.collect_certificates_drift()
+
+        assert data['google']['s'] == -1
+
+    def test_connection_reset(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_certificate', side_effect=ConnectionResetError):
+            data = main.collect_certificates_drift()
+
+        assert data['google']['s'] == -1
+
+    def test_ssl_error(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_certificate', side_effect=ssl.SSLError):
+            data = main.collect_certificates_drift()
+
+        assert data['google']['s'] == -1
+
+
+# ---------------------------------------------------------------------------
+# collect_public_certificates_drift()
+# ---------------------------------------------------------------------------
+
+class TestCollectPublicCertificatesDrift:
+    def test_nominal(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+        future = datetime.now() + timedelta(days=60)
+
+        with patch('main.lookup_certificate_sni', return_value=future):
+            data = main.collect_public_certificates_drift()
+
+        assert 'le_cert' in data
+        assert data['le_cert']['s'] > 0
+        assert data['le_cert']['d'] >= 59
+
+    def test_connection_refused(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_certificate_sni', side_effect=ConnectionRefusedError):
+            data = main.collect_public_certificates_drift()
+
+        assert data['le_cert']['s'] == -1
+
+    def test_timeout(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_certificate_sni', side_effect=TimeoutError):
+            data = main.collect_public_certificates_drift()
+
+        assert data['le_cert']['s'] == -1
+
+    def test_ssl_error(self, config_file, monkeypatch):
+        monkeypatch.setenv('CONFIG', config_file)
+
+        with patch('main.lookup_certificate_sni', side_effect=ssl.SSLError):
+            data = main.collect_public_certificates_drift()
+
+        assert data['le_cert']['s'] == -1
 
 
 # ---------------------------------------------------------------------------
