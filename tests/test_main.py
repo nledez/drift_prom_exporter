@@ -222,8 +222,40 @@ class TestMetricsHandler:
 
     def test_unknown_404(self):
         body = self._make_handler('GET', '/unknown')
-        # 404 produces empty body
-        assert body is not None
+        assert b'404' in body
+
+    def test_metrics_with_query_string(self):
+        body = self._make_handler('GET', '/metrics?format=prometheus')
+        assert b'200' in body
+        assert b'# HELP' in body
+
+    def test_metrics_with_unrelated_query_string(self):
+        body = self._make_handler('GET', '/metrics?foo=bar&baz=1')
+        assert b'200' in body
+        assert b'# HELP' in body
+
+    def test_version_with_query_string(self):
+        body = self._make_handler('GET', '/version?format=json')
+        assert b'200' in body
+        assert b'version' in body
+
+    def test_status_with_query_string(self):
+        body = self._make_handler('GET', '/status?x=1')
+        assert b'200' in body
+        assert b'last_scrape' in body
+
+    def test_metrics_prefix_is_not_a_route(self):
+        # '/met' used to match because `path in ('/metrics')` is a substring test
+        body = self._make_handler('GET', '/met')
+        assert b'404' in body
+
+    def test_root_is_not_a_route(self):
+        body = self._make_handler('GET', '/')
+        assert b'404' in body
+
+    def test_metrics_trailing_path_is_not_a_route(self):
+        body = self._make_handler('GET', '/metrics/extra')
+        assert b'404' in body
 
 
 # ---------------------------------------------------------------------------

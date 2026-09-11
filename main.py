@@ -11,6 +11,7 @@ import yaml
 import OpenSSL
 import ssl, socket
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlsplit
 
 from datetime import datetime
 from hvac.exceptions import Unauthorized
@@ -26,19 +27,20 @@ class MetricsHandler(BaseHTTPRequestHandler):
     server_version = 'drift_prom_exporter/{}'.format(version)
 
     def do_GET(self):
-        if self.path in ('/metrics'):
+        route = urlsplit(self.path).path
+        if route == '/metrics':
             output = generate_latest()
             self.send_response(200)
             self.send_header('Content-Type', CONTENT_TYPE_LATEST)
             self.end_headers()
             self.wfile.write(output)
-        elif self.path == '/version':
+        elif route == '/version':
             payload = json.dumps({'version': version}).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(payload)
-        elif self.path == '/status':
+        elif route == '/status':
             payload = json.dumps(status).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
