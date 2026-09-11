@@ -23,6 +23,7 @@ COPY --from=build /app/.venv /app/.venv
 COPY main.py VERSION ./
 
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
 
 ENV PORT=8000
 EXPOSE ${PORT}
